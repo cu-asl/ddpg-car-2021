@@ -326,7 +326,7 @@ class CarEnv:
             reward = reward
         elif v_kmh < 50:
             reward += 0.01*(v_kmh-30)
-        elif v_kmh > 50:
+        elif v_kmh >= 50:
             reward += 0.2
         else:
             print("Reward is not calculated.")
