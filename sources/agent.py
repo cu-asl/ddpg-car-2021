@@ -8,7 +8,7 @@ from sources import models
 
 
 class DDPGAgent:
-    def __init__(self):
+    def __init__(self, loaded_actor=None, loaded_critic=None):
         self.discount = settings.DISCOUNT
         self.memorySize = settings.REPLAY_MEMORY_SIZE
         # Mini batch size for keras .fit method
@@ -32,11 +32,23 @@ class DDPGAgent:
 
         self.useNoise = settings.NOISE
 
-        self.actor = self.defineActor()
-        self.actor_target = self.defineActor()
+        if loaded_actor == None and loaded_critic == None:
+            self.actor = self.defineActor()
+            self.actor_target = self.defineActor()
 
-        self.critic = self.defineCritic()
-        self.critic_target = self.defineCritic()
+            self.critic = self.defineCritic()
+            self.critic_target = self.defineCritic()
+
+        elif loaded_actor != None and loaded_critic != None:
+            self.actor = loaded_actor
+            self.actor_target = loaded_actor
+
+            self.critic = loaded_critic
+            self.critic_target = loaded_critic
+
+        else:
+            print(
+                'You need to load both actor and critic, or else, do not load anything.')
 
         self.actor_target.set_weights(self.actor.get_weights())
         self.critic_target.set_weights(self.critic.get_weights())

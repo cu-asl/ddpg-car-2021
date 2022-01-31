@@ -278,6 +278,8 @@ class CarEnv:
 
     def step(self, action, last_action, last_velocity):
 
+        is_finished = False
+
         action[0] = abs(action[0])
         action = [act.item() for act in action]
 
@@ -344,6 +346,7 @@ class CarEnv:
             reward = reward
         if l_.y <= -55:
             done = True
+            is_finished = True
             reward = reward
         if abs(action[1]-last_action[1]) >= 0.4:
             reward -= 0.5
@@ -373,7 +376,7 @@ class CarEnv:
         self.current_state = np.array(
             [xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh])
 
-        return self.current_state, reward, done, None
+        return self.current_state, reward, done, is_finished, None
 
     # def test_step(self, action, last_action):
 

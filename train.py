@@ -126,7 +126,7 @@ if __name__ == '__main__':
         # Env.collision_hist = [] -> REDUNDANT???
         episode_reward = 0
         explore = 0
-        step = 1
+        step = 0
         Action = [np.array([0, 0])]
         v_kmh = [0]
 
@@ -141,14 +141,14 @@ if __name__ == '__main__':
         # Play for given number of seconds only
         while True:
 
-            action = []
+            # action = []
 
             if np.random.random() > settings.epsilon:
                 action = Agent.chooseAction(current_state)[0]
             else:
                 action = Agent.randomAction()[0]
                 explore += 1
-            new_state, reward, done, _ = Env.step(
+            new_state, reward, done, _, _ = Env.step(
                 action, Action[-1], v_kmh[-1])
             Action.append(action)
             v_kmh.append(new_state[-1])
