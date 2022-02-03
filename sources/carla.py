@@ -2,6 +2,7 @@ import sys
 import os
 import glob
 
+import random
 import carla
 import math
 import time
@@ -43,9 +44,9 @@ class CarEnv:
         self.model_3 = self.blueprint_library.filter('model3')[0]
         # self.truck_2 = self.blueprint_library.filter('carlamotors')[0]
 
-        spectator = self.world.get_spectator()
-        spectator.set_transform(carla.Transform(
-            carla.Location(56.2, -4.2, 3), carla.Rotation(yaw=180)))
+        # spectator = self.world.get_spectator()
+        # spectator.set_transform(carla.Transform(
+        #     carla.Location(56.2, -4.2, 3), carla.Rotation(yaw=180)))
 
         for x in list(self.world.get_actors()):
             if 'vehicle' in x.type_id or 'sensor' in x.type_id:
@@ -55,20 +56,37 @@ class CarEnv:
         self.blueprint = self.blueprint_library.filter('model3')[0]
         # self.blueprint = blueprint_library.filter('blueprint')[0]
 
-        refmap = pd.read_csv('refmap3.csv')
-        self.kd_tree_map = kdtree(refmap.values)
-
     def reset(self):
         self.collision_hist = []
         self.actor_list = []
         # self.pt_cloud = []
         # self.pt_cloud_filtered = []
 
+        # Random maps
+        # 0-9 are indexes of maps. For now, we will use 0-7 for training and 8-9 for testing.
+        index = random.randint(0, 7)
+        self.map_name = 'refmap3-{}'.format(index+1)
+        self.refmap = pd.read_csv('refmaps\\{}.csv'.format(self.map_name))
+        self.kd_tree_map = kdtree(self.refmap.values)
+
+        starting_points = pd.read_csv('refmaps\\starting_points.csv')
+        starting_point = (
+            starting_points.iloc[index, 1], starting_points.iloc[index, 2], starting_points.iloc[index, 3])  # (x,y,yaw)
+
         # Vehicle
         transform = carla.Transform(carla.Location(
-            56.2, -4.2, 0.5), carla.Rotation(0, 180, 0))
+            starting_point[0], starting_point[1], 0.5), carla.Rotation(yaw=starting_point[2]))
+        # transform = carla.Transform(carla.Location(
+        #     56.2, -4.2, 0.5), carla.Rotation(0, 180, 0))
+        # transform = random.choice(self.world.get_map().get_spawn_points())
         self.vehicle = self.world.spawn_actor(self.blueprint, transform)
         self.actor_list.append(self.vehicle)
+
+        # Spectator
+        spectator = self.world.get_spectator()
+        transform = carla.Transform(carla.Location(
+            starting_point[0], starting_point[1], 3), carla.Rotation(yaw=starting_point[2]))
+        spectator.set_transform(transform)
 
         # LiDAR
         self.lidar_sensor = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
@@ -221,6 +239,14 @@ class CarEnv:
                 return 2
             else:
                 return 1
+
+    def get_distance_to_finish(self):
+        l = self.vehicle.get_location()
+        destination = (self.refmap.iloc[-1, 0], self.refmap.iloc[-1, 1])
+        dist = math.sqrt(
+            math.pow(destination[0]-l.x, 2) + math.pow(destination[1]-l.y, 2))
+        return dist
+
     #############################################################################
 
     def collision_data(self, event):
@@ -334,7 +360,7 @@ class CarEnv:
             print("Reward is not calculated.")
         #############################################################################
 
-        if len(self.collision_hist) != 0 or distance_from_road >= 5.0:
+        if len(self.collision_hist) != 0 or distance_from_road >= 2:    # 5 -> 2
             done = True
             reward = -3  # -2
         else:
@@ -344,11 +370,12 @@ class CarEnv:
         if self.episode_start + settings.SECONDS_PER_EPISODE < time.time():
             done = True
             reward = reward
-        if l_.y <= -55:
+        # if l_.y <= -55:
+        if self.get_distance_to_finish() <= 0.2:
             done = True
             is_finished = True
             reward = reward
-        if abs(action[1]-last_action[1]) >= 0.4:
+        if abs(action[1]-last_action[1]) >= 0.3:    # 0.4 -> 0.3
             reward -= 0.5
 
         xx = self.distance_to_obstacle_f

@@ -1,8 +1,8 @@
 # CARLA environment settings
-SECONDS_PER_EPISODE = 100
+SECONDS_PER_EPISODE = 60
 
 # Agent settings
-NOISE = False
+NOISE = True
 ACTOR_LEARNING_RATE = 0.0001
 CRITIC_LEARNING_RATE = 0.001
 

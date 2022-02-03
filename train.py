@@ -177,8 +177,8 @@ if __name__ == '__main__':
             settings.epsilon *= settings.EPSILON_DECAY
             settings.epsilon = max(settings.MIN_EPSILON, settings.epsilon)
 
-        print('Episode :{}, Step :{}, Epsilon :{}, Reward :{}, Explore_rate :{}, Avg_v_kmh :{}, Max_v_kmh :{}'
-              .format(episode+load_episode, step, settings.epsilon, episode_reward, explore/step, np.array(v_kmh).mean(), np.array(v_kmh).max()))
+        print('Episode :{}, Step :{}, Epsilon :{}, Reward :{}, Explore_rate :{}, Avg_v_kmh :{}, Max_v_kmh :{}, Map :{}'
+              .format(episode+load_episode, step, settings.epsilon, episode_reward, explore/step, np.array(v_kmh).mean(), np.array(v_kmh).max(), Env.map_name))
 
         ep_rewards.append(episode_reward)
         ep.append(episode+load_episode)
@@ -191,10 +191,10 @@ if __name__ == '__main__':
 
         if (episode+load_episode) % 100 == 0:
             df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
-                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': np.array(v_kmh).mean(), 'Max_velocity': np.array(v_kmh).max()})
+                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': np.array(v_kmh).mean(), 'Max_velocity': np.array(v_kmh).max(), 'Map': Env.map_name})
             # if LOAD == True:
             #     df = pd.concat([df_load, df], ignore_index=True)
-            save_model('JAN_27_0.99995', episode+load_episode, df, Agent)
+            save_model('FEB_3', episode+load_episode, df, Agent)
 
     # Agent.terminate = True
     # trainer_thread.join()
