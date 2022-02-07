@@ -1,5 +1,5 @@
 # CARLA environment settings
-SECONDS_PER_EPISODE = 60
+SECONDS_PER_EPISODE = 100
 
 # Agent settings
 NOISE = True
@@ -7,10 +7,11 @@ ACTOR_LEARNING_RATE = 0.0001
 CRITIC_LEARNING_RATE = 0.001
 
 # Trainer settings
-EPISODES = 20_000  # 100
+EPISODES = 40_000  # 100
 MINIBATCH_SIZE = 32
 UPDATE_TARGET_EVERY = 1
 MEMORY_FRACTION = 0.6
+SAVE_MODEL_EVERY = 1
 
 # DDPG settings
 DISCOUNT = 0.99
@@ -24,6 +25,12 @@ MIN_EPSILON = 0.001
 
 # Console settings
 SHOW_PREVIEW = False  # Preview the camera - You can manually set it to TRUE.
+
+# Load model
+LOAD = True
+LOADED_ACTOR_NAME = 'actorFEB_7_3'
+LOADED_CRITIC_NAME = 'criticFEB_7_3'
+LOADED_CSV_NAME = 'FEB_7_3'
 
 # Test settings
 TEST_EPISODES = 10

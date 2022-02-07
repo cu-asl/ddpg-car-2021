@@ -56,6 +56,8 @@ class CarEnv:
         self.blueprint = self.blueprint_library.filter('model3')[0]
         # self.blueprint = blueprint_library.filter('blueprint')[0]
 
+        self.test = False
+
     def reset(self):
         self.collision_hist = []
         self.actor_list = []
@@ -64,7 +66,10 @@ class CarEnv:
 
         # Random maps
         # 0-9 are indexes of maps. For now, we will use 0-7 for training and 8-9 for testing.
-        index = random.randint(0, 7)
+        if self.test == False:
+            index = random.randint(0, 7)
+        elif self.test == True:
+            index = random.randint(0, 9)
         self.map_name = 'refmap3-{}'.format(index+1)
         self.refmap = pd.read_csv('refmaps\\{}.csv'.format(self.map_name))
         self.kd_tree_map = kdtree(self.refmap.values)
@@ -308,9 +313,16 @@ class CarEnv:
 
         action[0] = abs(action[0])
         action = [act.item() for act in action]
-
         self.vehicle.apply_control(carla.VehicleControl(
             throttle=action[0], steer=action[1], brake=0))
+        # action = [act.item() for act in action]
+
+        # if action[0] >= 0:
+        #     self.vehicle.apply_control(carla.VehicleControl(
+        #         throttle=action[0], steer=action[1], brake=0))
+        # elif action[0] < 0:
+        #     self.vehicle.apply_control(carla.VehicleControl(
+        #         throttle=0, steer=action[1], brake=abs(action[0])))
 
         time.sleep(0.3)
 
@@ -371,7 +383,7 @@ class CarEnv:
             done = True
             reward = reward
         # if l_.y <= -55:
-        if self.get_distance_to_finish() <= 0.2:
+        if self.get_distance_to_finish() <= 1.0:    # 0.2
             done = True
             is_finished = True
             reward = reward

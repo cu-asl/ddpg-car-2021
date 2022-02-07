@@ -11,6 +11,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as backend
 from collections import deque
 from threading import Thread
+from keras.models import model_from_json
 
 from tqdm import tqdm
 
@@ -59,6 +60,37 @@ def save_model(name, n, df, agent):
     agent.save_actor(file_path+'actor'+name+'_'+str(n))
 
 
+def load_model(actor_name, critic_name, model_name):
+
+    json_file = open('DATA\\{}.json'.format(actor_name), 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_actor = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_actor.load_weights("DATA\\{}.h5".format(actor_name))
+
+    print("Loaded actor from disk")
+    loaded_actor.summary()
+
+    json_file = open('DATA\\{}.json'.format(critic_name), 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_critic = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_critic.load_weights("DATA\\{}.h5".format(critic_name))
+
+    print("Loaded critic from disk")
+    loaded_critic.summary()
+
+    file_path = "DATA\\"
+    df = pd.read_csv(file_path+'{}.csv'.format(model_name))
+    episode = df.Episode.tail(1).values[0]
+    epsilon = df.Epsilon.tail(1).values[0]
+    print('Episode : {} , Epsilon : {} '.format(episode, epsilon))
+
+    return df, episode, epsilon, loaded_actor, loaded_critic
+
+
 if __name__ == '__main__':
 
     if carla_is_running():
@@ -77,6 +109,9 @@ if __name__ == '__main__':
     Explore = []
     Steer = []
     Epsilon = []
+    Map = []
+    avg_v_kmh = []
+    max_v_kmh = []
 
     random.seed(1)
     np.random.seed(1)
@@ -89,27 +124,34 @@ if __name__ == '__main__':
     # sleepy = 0.3
 
     #pp = ProgressPlot(x_label="Episode",line_names=['Average_reward'])
+    #########
+    if settings.LOAD == True:
+        # In case Train from loaded_model
+        actor_name = settings.LOADED_ACTOR_NAME
+        critic_name = settings.LOADED_CRITIC_NAME
+        model_name = settings.LOADED_CSV_NAME
 
-    # if LOAD == True:
-    #     # In case Train from loaded_model
-    #     Agent = DDPG_load_model(loaded_critic, loaded_actor)
-    #     epsilon = load_epsilon
-    #     nn = 0
-    #     for i in df_load.Reward:
-    #         avg = ((avg*(nn)+i)/(nn+1))
-    #         # pp.update(float(avg))
-    #         nn += 1
-    #     avg = sum(df_load.Reward)/df_load.shape[0]
-    # else:
+        df_load, load_episode, loaded_epsilon, loaded_actor, loaded_critic = load_model(
+            actor_name, critic_name, model_name)
+        Agent = agent.DDPGAgent(loaded_actor, loaded_critic)
+        epsilon = loaded_epsilon
+        nn = 0
+        for i in df_load.Reward:
+            avg = ((avg*(nn)+i)/(nn+1))
+            # pp.update(float(avg))
+            nn += 1
+        avg = sum(df_load.Reward)/df_load.shape[0]
 
-    #     # Create Agent and environment
-    #     Agent = agent.DDPGAgent()
-    #     load_episode = 0
-
-    Agent = agent.DDPGAgent()
-    load_episode = 0
+    else:
+        # Create Agent and environment
+        Agent = agent.DDPGAgent()
+        load_episode = 0
+    ###############
+    # Agent = agent.DDPGAgent()
+    # load_episode = 0
     # Iterate over episodes
     Env = carla.CarEnv()
+    Env.test = False
 
     # reset_world()
 
@@ -188,13 +230,18 @@ if __name__ == '__main__':
         avg = ((avg*(episode+load_episode)+episode_reward) /
                (episode+load_episode+1))
         avg_reward.append(avg)
+        avg_v_kmh.append(np.array(v_kmh).mean())
+        max_v_kmh.append(np.array(v_kmh).max())
+        Map.append(Env.map_name)
 
-        if (episode+load_episode) % 100 == 0:
+        if (episode+load_episode) % settings.SAVE_MODEL_EVERY == 0:
+            # df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
+            #     Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map})
             df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
-                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': np.array(v_kmh).mean(), 'Max_velocity': np.array(v_kmh).max(), 'Map': Env.map_name})
+                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Map': Map})
             # if LOAD == True:
             #     df = pd.concat([df_load, df], ignore_index=True)
-            save_model('FEB_3', episode+load_episode, df, Agent)
+            save_model('FEB_7', episode+load_episode, df, Agent)
 
     # Agent.terminate = True
     # trainer_thread.join()

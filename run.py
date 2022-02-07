@@ -53,12 +53,15 @@ if __name__ == '__main__':
     Agent = agent.DDPGAgent(loaded_actor, loaded_critic)
     Env = carla.CarEnv()
 
+    Env.test = True
+
     test_ep = settings.TEST_EPISODES
     test_step = []
     test_reward = []
     dist_average = []
     avg_v_kmh = []
     max_v_kmh = []
+    Map = []
     results = []
 
     # Create test results folder
@@ -112,6 +115,7 @@ if __name__ == '__main__':
         # map_save.append(map_)
         test_reward.append(episode_reward)
         test_step.append(step)
+        Map.append(Env.map_name)
 
         if is_finished == True:
             results.append('Success')
@@ -120,7 +124,7 @@ if __name__ == '__main__':
 
     df_test = pd.DataFrame({'Episode': [i for i in range(1, test_ep+1)],
                             'Step': test_step, 'Reward': test_reward,
-                            'Avg_Dist': dist_average, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Results': results})
+                            'Avg_Dist': dist_average, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map, 'Results': results})
 
     name = 'Model_{}_{}eps'.format(time.time(), test_ep)
     file_path = "Test results\\"
