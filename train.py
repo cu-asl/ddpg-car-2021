@@ -134,7 +134,7 @@ if __name__ == '__main__':
         df_load, load_episode, loaded_epsilon, loaded_actor, loaded_critic = load_model(
             actor_name, critic_name, model_name)
         Agent = agent.DDPGAgent(loaded_actor, loaded_critic)
-        epsilon = loaded_epsilon
+        settings.epsilon = loaded_epsilon
         nn = 0
         for i in df_load.Reward:
             avg = ((avg*(nn)+i)/(nn+1))
@@ -235,10 +235,8 @@ if __name__ == '__main__':
         Map.append(Env.map_name)
 
         if (episode+load_episode) % settings.SAVE_MODEL_EVERY == 0:
-            # df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
-            #     Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map})
             df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
-                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Map': Map})
+                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map})
             # if LOAD == True:
             #     df = pd.concat([df_load, df], ignore_index=True)
             save_model('FEB_7', episode+load_episode, df, Agent)
@@ -247,3 +245,5 @@ if __name__ == '__main__':
     # trainer_thread.join()
 
     # close_carla()
+
+    print('Train finished.')

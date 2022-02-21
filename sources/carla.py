@@ -72,11 +72,13 @@ class CarEnv:
             index = random.randint(0, 9)
         self.map_name = 'refmap3-{}'.format(index+1)
         self.refmap = pd.read_csv('refmaps\\{}.csv'.format(self.map_name))
+        # self.refmap = pd.read_csv('refmap3.csv'.format(self.map_name))
         self.kd_tree_map = kdtree(self.refmap.values)
 
         starting_points = pd.read_csv('refmaps\\starting_points.csv')
         starting_point = (
             starting_points.iloc[index, 1], starting_points.iloc[index, 2], starting_points.iloc[index, 3])  # (x,y,yaw)
+        # starting_point = (56.2, -4.2, 180)
 
         # Vehicle
         transform = carla.Transform(carla.Location(
@@ -144,27 +146,27 @@ class CarEnv:
         # distance_l = int(self.distance_to_obstacle_l)
         # distance_r = int(self.distance_to_obstacle_r)
 
-        xx = self.distance_to_obstacle_f
-        yy = self.distance_to_obstacle_r
-        zz = self.distance_to_obstacle_l
-        if xx <= 3:
-            xx = 2
-        elif xx <= 1:
-            xx = 1
-        else:
-            xx = 0
-        if yy <= 3:
-            yy = 2
-        elif yy <= 1:
-            yy = 1
-        else:
-            yy = 0
-        if zz <= 3:
-            zz = 2
-        elif zz <= 1:
-            zz = 1
-        else:
-            zz = 0
+        xx = int(self.distance_to_obstacle_f)
+        yy = int(self.distance_to_obstacle_r)
+        zz = int(self.distance_to_obstacle_l)
+        # if xx <= 3:
+        #     xx = 2
+        # elif xx <= 1:
+        #     xx = 1
+        # else:
+        #     xx = 0
+        # if yy <= 3:
+        #     yy = 2
+        # elif yy <= 1:
+        #     yy = 1
+        # else:
+        #     yy = 0
+        # if zz <= 3:
+        #     zz = 2
+        # elif zz <= 1:
+        #     zz = 1
+        # else:
+        #     zz = 0
 
         self.current_state = np.array(
             [xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh])
@@ -372,7 +374,7 @@ class CarEnv:
             print("Reward is not calculated.")
         #############################################################################
 
-        if len(self.collision_hist) != 0 or distance_from_road >= 2:    # 5 -> 2
+        if len(self.collision_hist) != 0 or distance_from_road >= 5:    # 5 -> 2
             done = True
             reward = -3  # -2
         else:
@@ -383,34 +385,34 @@ class CarEnv:
             done = True
             reward = reward
         # if l_.y <= -55:
-        if self.get_distance_to_finish() <= 1.0:    # 0.2
+        if self.get_distance_to_finish() <= 2.0:    # 1
             done = True
             is_finished = True
             reward = reward
         if abs(action[1]-last_action[1]) >= 0.3:    # 0.4 -> 0.3
             reward -= 0.5
 
-        xx = self.distance_to_obstacle_f
-        yy = self.distance_to_obstacle_r
-        zz = self.distance_to_obstacle_l
-        if xx <= 3:
-            xx = 2
-        elif xx <= 1:
-            xx = 1
-        else:
-            xx = 0
-        if yy <= 3:
-            yy = 2
-        elif yy <= 1:
-            yy = 1
-        else:
-            yy = 0
-        if zz <= 3:
-            zz = 2
-        elif zz <= 1:
-            zz = 1
-        else:
-            zz = 0
+        xx = int(self.distance_to_obstacle_f)
+        yy = int(self.distance_to_obstacle_r)
+        zz = int(self.distance_to_obstacle_l)
+        # if xx <= 3:
+        #     xx = 2
+        # elif xx <= 1:
+        #     xx = 1
+        # else:
+        #     xx = 0
+        # if yy <= 3:
+        #     yy = 2
+        # elif yy <= 1:
+        #     yy = 1
+        # else:
+        #     yy = 0
+        # if zz <= 3:
+        #     zz = 2
+        # elif zz <= 1:
+        #     zz = 1
+        # else:wwwww
+        #     zz = 0
 
         self.current_state = np.array(
             [xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh])
