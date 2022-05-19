@@ -32,7 +32,7 @@ If you are using pip, you can simply install by typing this command in the comma
 ```
 pip install requirements.txt
 ```
-If you don't have pip, just go to [this website](https://bootstrap.pypa.io/get-pip.py), right click the website, and save as `get-pip.py`.
+If you don't have pip, just go to [this website](https://bootstrap.pypa.io/get-pip.py), right click the website, save as `get-pip.py`, and run the code.
 
 Now, you are all set !!!
 
