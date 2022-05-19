@@ -10,8 +10,11 @@ This project is a reinforcement learning-based car simulation which simulated on
 The algortithm we used is *Deep Deterministic Policy Gradient (DDPG)*
 
 **Device specifications**  
+
 OS Recommedation: Windows 10 or 11 *Ubuntu is fine* but **Mac OS is not allowed**.
+
 Installed RAM: Should be at least 16.0 GB
+
 Installed GPU: Only NVIDIA supports CARLA so AMD is not allowed. Also, 8.0 GB-RAM GPU is recommended. (Even though, I used the 4.0 GB one but still works fine.)
 
 You also need the CARLA simulator v0.9.12 (I don't recommend using the versions below this because there are major changes in every version. Moreover, if you want to use a higher-version one, there are also risks that some further changes might affect the code.)
