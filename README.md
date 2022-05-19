@@ -55,6 +55,7 @@ You can change all hyperparameters in `settings.py`.
 
 ### Upgrading our code
 If you want to improve our work, there is `sources` folder which contains `agent.py` - AGENT, `carla.py` - ENVIRONMENT, `models.py` - ACTOR & CRITIC. This is where all the fun things started. 
+
 Furthermore, there is `replayBuffer.py` for `agent.py` but I don't recommend changing this file, only if you know what you are doing.
 
 ### Final note
