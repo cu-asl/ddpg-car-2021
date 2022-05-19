@@ -11,7 +11,7 @@ The algortithm we used is *Deep Deterministic Policy Gradient (DDPG)*
 
 **Device specifications**  
 
-OS Recommedation: Windows 10 or 11 *Ubuntu is fine* but **Mac OS is not allowed**.
+OS Recommedation: Windows 10 or 11. *Ubuntu is fine* but **Mac OS is not allowed**.
 
 Installed RAM: Should be at least 16.0 GB
 
@@ -20,6 +20,7 @@ Installed GPU: Only NVIDIA supports CARLA so AMD is not allowed. Also, 8.0 GB-RA
 You also need the CARLA simulator v0.9.12 (I don't recommend using the versions below this because there are major changes in every version. Moreover, if you want to use a higher-version one, there are also risks that some further changes might affect the code.)
 
 **CARLA (All versions)**: https://github.com/carla-simulator/carla/releases
+
 
 Then you need Python 3.7 (This project used Python 3.7.9, but 3.7.x also work fine.)
 
