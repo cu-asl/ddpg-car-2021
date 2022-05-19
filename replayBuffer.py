@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import settings
 
 
 class replayBuffer():
@@ -14,19 +15,25 @@ class replayBuffer():
         self.state_space_size = state_space_size
         self.action_space_size = action_space_size
 
+        self.img_states = np.zeros(
+            (max_size, settings.IM_HEIGHT, settings.IM_WIDTH, 2))
         self.states = np.zeros((max_size, state_space_size))
         self.actions = np.zeros((max_size, action_space_size))
         self.rewards = np.zeros((max_size, 1))
+        self.next_img_states = np.zeros(
+            (max_size, settings.IM_HEIGHT, settings.IM_WIDTH, 2))
         self.next_states = np.zeros((max_size, state_space_size))
         self.dones = np.zeros((max_size, 1))
 
     def append(self, state, action, reward, next_state, done):
         """Rotating list"""
 
-        self.states[self.index] = state
+        self.img_states[self.index] = state[0]
+        self.states[self.index] = state[1:]
         self.actions[self.index] = action
         self.rewards[self.index] = reward
-        self.next_states[self.index] = next_state
+        self.next_img_states[self.index] = next_state[0]
+        self.next_states[self.index] = next_state[1:]
 
         if (done == True):
             self.dones[self.index] = 1.0
@@ -41,10 +48,12 @@ class replayBuffer():
 
         random_experience_indexes = np.random.choice(max_index, batch_size)
 
+        rIS = self.img_states[random_experience_indexes]
         rS = self.states[random_experience_indexes]
         rA = self.actions[random_experience_indexes]
         rR = self.rewards[random_experience_indexes]
+        rNIS = self.next_img_states[random_experience_indexes]
         rNS = self.next_states[random_experience_indexes]
         rD = self.dones[random_experience_indexes]
 
-        return rS, rA, rR, rNS, rD
+        return rIS, rS, rA, rR, rNIS, rNS, rD

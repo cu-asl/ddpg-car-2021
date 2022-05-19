@@ -6,6 +6,7 @@ import random
 import carla
 import math
 import time
+import cv2
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree as kdtree
@@ -22,18 +23,16 @@ except IndexError:
 
 
 class CarEnv:
-    #BRAKE_AMT = 1.0
+
     actor_list = []
     collision_hist = []
-    # pt_cloud = []
-    # pt_cloud_filtered = []
 
     def __init__(self):
         self.client = carla.Client('localhost', 2000)
         self.client.set_timeout(180.0)
 
         # Load layered map for Town03 with minimum layout plus buildings and parked vehicles
-        # self.world = self.client.get_world()
+        # self.world = self.client.get_world()  # Uncomment this and comment self.client.load_world() if you don't want to change the map
         self.world = self.client.load_world(
             'Town03_Opt', carla.MapLayer.Buildings | carla.MapLayer.ParkedVehicles)
 
@@ -42,11 +41,6 @@ class CarEnv:
 
         self.blueprint_library = self.world.get_blueprint_library()
         self.model_3 = self.blueprint_library.filter('model3')[0]
-        # self.truck_2 = self.blueprint_library.filter('carlamotors')[0]
-
-        # spectator = self.world.get_spectator()
-        # spectator.set_transform(carla.Transform(
-        #     carla.Location(56.2, -4.2, 3), carla.Rotation(yaw=180)))
 
         for x in list(self.world.get_actors()):
             if 'vehicle' in x.type_id or 'sensor' in x.type_id:
@@ -54,39 +48,54 @@ class CarEnv:
 
         self.blueprint_library = self.world.get_blueprint_library()
         self.blueprint = self.blueprint_library.filter('model3')[0]
-        # self.blueprint = blueprint_library.filter('blueprint')[0]
+
+        # Autopilot vehicle
+        tm = self.client.get_trafficmanager()
+        tm_port = tm.get_port()
+
+        self.auto_vehicle_list = []
+        while len(self.auto_vehicle_list) < settings.NUMBER_OF_AUTO_VEHICLES:
+            spawn_point = random.choice(
+                self.world.get_map().get_spawn_points())
+            auto_vehicle = self.world.try_spawn_actor(
+                self.blueprint, spawn_point)
+            if auto_vehicle is not None:
+                auto_vehicle.apply_control(
+                    carla.VehicleControl(throttle=0.0, steer=0.0))
+                time.sleep(3)   # Wait for a car to be ready
+                auto_vehicle.set_autopilot(True, tm_port)
+                tm.ignore_lights_percentage(auto_vehicle, 100)
+                tm.vehicle_percentage_speed_difference(auto_vehicle, 50)
+                self.auto_vehicle_list.append(auto_vehicle)
 
         self.test = False
 
     def reset(self):
         self.collision_hist = []
         self.actor_list = []
-        # self.pt_cloud = []
-        # self.pt_cloud_filtered = []
 
         # Random maps
-        # 0-9 are indexes of maps. For now, we will use 0-7 for training and 8-9 for testing.
-        if self.test == False:
-            index = random.randint(0, 7)
-        elif self.test == True:
-            index = random.randint(0, 9)
-        self.map_name = 'refmap3-{}'.format(index+1)
-        self.refmap = pd.read_csv('refmaps\\{}.csv'.format(self.map_name))
-        # self.refmap = pd.read_csv('refmap3.csv'.format(self.map_name))
-        self.kd_tree_map = kdtree(self.refmap.values)
+        # 0-9 are indexes of maps. For now, we use 0-7 for training and 8-9 for testing.
+        while True:
+            if self.test == False:
+                index = random.randint(0, 7)
+            elif self.test == True:
+                index = random.randint(0, 9)
+            self.map_name = 'refmap3-{}'.format(index+1)
+            self.refmap = pd.read_csv('refmaps\\{}.csv'.format(self.map_name))
+            self.kd_tree_map = kdtree(self.refmap.values)
 
-        starting_points = pd.read_csv('refmaps\\starting_points.csv')
-        starting_point = (
-            starting_points.iloc[index, 1], starting_points.iloc[index, 2], starting_points.iloc[index, 3])  # (x,y,yaw)
-        # starting_point = (56.2, -4.2, 180)
+            starting_points = pd.read_csv('refmaps\\starting_points.csv')
+            starting_point = (
+                starting_points.iloc[index, 1], starting_points.iloc[index, 2], starting_points.iloc[index, 3])  # (x,y,yaw)
 
-        # Vehicle
-        transform = carla.Transform(carla.Location(
-            starting_point[0], starting_point[1], 0.5), carla.Rotation(yaw=starting_point[2]))
-        # transform = carla.Transform(carla.Location(
-        #     56.2, -4.2, 0.5), carla.Rotation(0, 180, 0))
-        # transform = random.choice(self.world.get_map().get_spawn_points())
-        self.vehicle = self.world.spawn_actor(self.blueprint, transform)
+            # Vehicle
+            transform = carla.Transform(carla.Location(
+                starting_point[0], starting_point[1], 0.5), carla.Rotation(yaw=starting_point[2]))
+            self.vehicle = self.world.try_spawn_actor(
+                self.blueprint, transform)
+            if self.vehicle != None:
+                break
         self.actor_list.append(self.vehicle)
 
         # Spectator
@@ -94,6 +103,32 @@ class CarEnv:
         transform = carla.Transform(carla.Location(
             starting_point[0], starting_point[1], 3), carla.Rotation(yaw=starting_point[2]))
         spectator.set_transform(transform)
+
+        # Depth camera
+        self.depth_bp = self.blueprint_library.find('sensor.camera.depth')
+        self.depth_bp.set_attribute("image_size_x", f"{settings.IM_WIDTH}")
+        self.depth_bp.set_attribute("image_size_y", f"{settings.IM_HEIGHT}")
+        self.depth_bp.set_attribute("fov", f"110")
+
+        depth_transform = carla.Transform(carla.Location(x=2.5, z=0.7))
+        self.depth_cam = self.world.spawn_actor(
+            self.depth_bp, depth_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
+        self.actor_list.append(self.depth_cam)
+        self.depth_cam.listen(lambda data: self.process_img_depth(data))
+
+        # Segmentation camera
+        self.segm_bp = self.blueprint_library.find(
+            'sensor.camera.semantic_segmentation')
+        self.segm_bp.set_attribute("image_size_x", f"{settings.IM_WIDTH}")
+        self.segm_bp.set_attribute("image_size_y", f"{settings.IM_HEIGHT}")
+        self.segm_bp.set_attribute("fov", f"110")
+
+        segm_transform = carla.Transform(carla.Location(x=2.5, z=0.7))
+        self.segm_cam = self.world.spawn_actor(
+            self.segm_bp, segm_transform, attach_to=self.vehicle, attachment_type=carla.AttachmentType.Rigid)
+        self.actor_list.append(self.segm_cam)
+        # This time, a color converter is applied to the image, to get the semantic segmentation view
+        self.segm_cam.listen(lambda data: self.process_img_segm(data))
 
         # LiDAR
         self.lidar_sensor = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
@@ -113,7 +148,7 @@ class CarEnv:
         # Apply control
         self.vehicle.apply_control(
             carla.VehicleControl(throttle=0.0, brake=0.0))
-        # sleep to get things started and to not detect a collision when the car spawns/falls from sky.
+        # Sleep to get things started and to not detect a collision when the car spawns/falls from sky.
         time.sleep(4)
 
         transform = carla.Transform(carla.Location(x=2.5, z=0.7))
@@ -127,10 +162,8 @@ class CarEnv:
             time.sleep(0.01)
 
         self.episode_start = time.time()
-        self.vehicle.apply_control(
-            carla.VehicleControl(throttle=0.0, brake=0.0))
 
-        # Current state
+        # Initialize state
         alpha = self.get_tangent_angle_closest_point()
         beta = alpha
         diff_angle = beta-alpha
@@ -142,46 +175,19 @@ class CarEnv:
         diff_v = 0
         v_kmh = 0
 
-        # distance_f = int(self.distance_to_obstacle_f)
-        # distance_l = int(self.distance_to_obstacle_l)
-        # distance_r = int(self.distance_to_obstacle_r)
-
         xx = int(self.distance_to_obstacle_f)
         yy = int(self.distance_to_obstacle_r)
         zz = int(self.distance_to_obstacle_l)
-        # if xx <= 3:
-        #     xx = 2
-        # elif xx <= 1:
-        #     xx = 1
-        # else:
-        #     xx = 0
-        # if yy <= 3:
-        #     yy = 2
-        # elif yy <= 1:
-        #     yy = 1
-        # else:
-        #     yy = 0
-        # if zz <= 3:
-        #     zz = 2
-        # elif zz <= 1:
-        #     zz = 1
-        # else:
-        #     zz = 0
+
+        img = np.random.rand(settings.IM_HEIGHT, settings.IM_WIDTH, 2)
+        img[:, :, 0:1] = self.segm_img
+        img[:, :, 1:2] = self.depth
 
         self.current_state = np.array(
-            [xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh])
+            [img, xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh], dtype='object')
 
         return self.current_state
 
-    # def Black_screen(self):
-    #     settings = self.world.get_settings()
-    #     settings.no_rendering_mode = True
-    #     self.world.apply_settings(settings)
-
-    # def set_location(self,x,y):
-
-    #     self.lo_x,self.lo_y=x,y
-    #     self.place=x,y
     #############################################################################
     def get_tangent_angle_closest_point(self):
         l = self.vehicle.get_location()
@@ -201,6 +207,11 @@ class CarEnv:
         xaf = self.kd_tree_map.data[af][0]
         yaf = self.kd_tree_map.data[af][1]
         alpha = math.atan2((yaf-ybf), (xaf-xbf))
+
+        # Distance Percentage
+        length = self.refmap.shape[0]
+        self.distance_percentage = (af/length)*100
+
         return alpha
 
     def get_velocity_data(self):
@@ -262,7 +273,6 @@ class CarEnv:
     #############################################################################
     def process_lidar(self, raw):
         points = np.frombuffer(raw.raw_data, dtype=np.dtype('f4'))
-        # points = np.reshape(points, (int(points.shape[0] / 3), 3))*np.array([1,-1,-1])
         points = np.reshape(
             points, (int(points.shape[0] / 4), 4))[:, :3]*np.array([1, -1, -1])
 
@@ -270,10 +280,12 @@ class CarEnv:
         lidar_r = self.lidar_line(points, 45, 2)
         lidar_l = self.lidar_line(points, 135, 2)
 
+        CAR_LENGTH = 2.482  # Depending on which car you use
+
         if len(lidar_f) == 0:
             pass
         else:
-            self.distance_to_obstacle_f = min(lidar_f[:, 1])-2.482
+            self.distance_to_obstacle_f = min(lidar_f[:, 1])-CAR_LENGTH
 
         if len(lidar_r) == 0:
             pass
@@ -307,25 +319,63 @@ class CarEnv:
             points_l = points_l[np.logical_and(
                 points_l[:, 0] > -1000, points_l[:, 0] < 0)]
         return points_l
+
+    def process_img_segm(self, img):
+        i = np.array(img.raw_data)
+        i2 = i.reshape((settings.IM_HEIGHT, settings.IM_WIDTH, 4))
+        self.segm_img = i2[:, :, 2:3]
+
+        if settings.SHOW_CAM:
+            img.convert(color_converter=carla.ColorConverter.CityScapesPalette)
+            i4 = np.array(img.raw_data)
+            i5 = i4.reshape((settings.IM_HEIGHT, settings.IM_WIDTH, 4))
+            i6 = i5[:, :, :3]
+            cv2.imshow("segmentation", i6)
+            cv2.waitKey(1)
+
+    def process_img_depth(self, img):
+        i = np.array(img.raw_data)
+        i2 = i.reshape((settings.IM_HEIGHT, settings.IM_WIDTH, 4))
+        i3 = i2[:, :, :3]
+
+        R = np.array(i3[:, :, 0], dtype=np.float64)
+        G = np.array(i3[:, :, 1], dtype=np.float64)
+        B = np.array(i3[:, :, 2], dtype=np.float64)
+        # distances in km for which the maximum value is 1.0
+        self.depth = (R + G*256 + B*256*256)/(256*256*256-1)
+        # self.depth = 1000 * self.depth   # in meters; shape = (IM_HEIGHT, IM_WIDTH)
+        self.depth = self.depth.reshape(
+            (settings.IM_HEIGHT, settings.IM_WIDTH, 1))
+
+        # For color conversion purpose only
+        if settings.SHOW_CAM:
+            img.convert(color_converter=carla.ColorConverter.LogarithmicDepth)
+            i = np.array(img.raw_data)
+            i2 = i.reshape((settings.IM_HEIGHT, settings.IM_WIDTH, 4))
+            i3 = i2[:, :, :3]
+            cv2.imshow("depth", i3)
+            cv2.waitKey(1)
+
     ##############################################################################################
 
     def step(self, action, last_action, last_velocity):
 
         is_finished = False
 
-        action[0] = abs(action[0])
         action = [act.item() for act in action]
+
+        # In case of the car unexpectedly stopped -- You can comment this if this is unnecessary.
+        if self.test == True and action[0] == -1.0:
+            action[0] = -0.75
+
+        # Apply control
         self.vehicle.apply_control(carla.VehicleControl(
-            throttle=action[0], steer=action[1], brake=0))
-        # action = [act.item() for act in action]
+            throttle=0.5+0.5*action[0], steer=action[1], brake=0))
 
-        # if action[0] >= 0:
-        #     self.vehicle.apply_control(carla.VehicleControl(
-        #         throttle=action[0], steer=action[1], brake=0))
-        # elif action[0] < 0:
-        #     self.vehicle.apply_control(carla.VehicleControl(
-        #         throttle=0, steer=action[1], brake=abs(action[0])))
+        if action[0] != -0.75:
+            print('Throttle:{}, Steer:{}'.format(0.5+0.5*action[0], action[1]))
 
+        # This is very important since the car needs time to react with the apply_control() command.
         time.sleep(0.3)
 
         l_ = self.vehicle.get_location()
@@ -336,47 +386,61 @@ class CarEnv:
         diff_v = v_kmh - last_velocity
         side = self.get_side()
 
-        # distance_f = int(self.distance_to_obstacle_f)
-        # distance_l = int(self.distance_to_obstacle_l)
-        # distance_r = int(self.distance_to_obstacle_r)
-
+        # REWARD FUNCTION
+        # Path tracking reward
         if beta*alpha < 0:
             if abs(beta)+abs(alpha) > math.pi:
-                reward = math.cos(2*math.pi-abs(beta) -
-                                  abs(alpha))-0.1*distance_from_road
+                path_tracking_reward = math.cos(2*math.pi-abs(beta) -
+                                                abs(alpha))-0.1*distance_from_road
                 if beta > alpha:
                     diff_angle = abs(beta)+abs(alpha)-2*math.pi
                 else:
                     diff_angle = 2*math.pi-abs(beta)-abs(alpha)
             elif abs(beta)+abs(alpha) < math.pi:
-                reward = math.cos(abs(beta)+abs(alpha))-0.1*distance_from_road
+                path_tracking_reward = math.cos(
+                    abs(beta)+abs(alpha))-0.1*distance_from_road
                 if beta > alpha:
                     diff_angle = abs(beta)+abs(alpha)
                 else:
                     diff_angle = -abs(beta)-abs(alpha)
             else:
-                reward = -1-0.1*distance_from_road
+                path_tracking_reward = -1-0.1*distance_from_road
                 diff_angle = math.pi
         else:
-            reward = math.cos(abs(beta-alpha))-0.1*distance_from_road
+            path_tracking_reward = math.cos(
+                abs(beta-alpha))-0.1*distance_from_road
             diff_angle = beta-alpha
 
-        # NEW ###############################
+        # Velocity tracking reward
         if diff_v <= 0 and v_kmh < 30:
-            reward -= (0.05/3)*(30-v_kmh)
+            velocity_tracking_reward = (0.05/3)*(v_kmh-30)
         elif diff_v > 0 and v_kmh < 30:
-            reward = reward
-        elif v_kmh < 50:
-            reward += 0.01*(v_kmh-30)
-        elif v_kmh >= 50:
-            reward += 0.2
-        else:
-            print("Reward is not calculated.")
+            velocity_tracking_reward = 0
+        elif v_kmh < 40:
+            velocity_tracking_reward = 0.05*(v_kmh-30)
+        elif v_kmh >= 40:
+            velocity_tracking_reward = 0.5
+
+        if v_kmh >= 45:  # Speed limit
+            velocity_tracking_reward -= 0.2*(v_kmh-45)
+
+        # Need to balance between these two rewards !!!
+        reward = path_tracking_reward + velocity_tracking_reward
+        reward = max(reward, -2.5)
         #############################################################################
 
-        if len(self.collision_hist) != 0 or distance_from_road >= 5:    # 5 -> 2
+        # For adjusting acceptable distance from road when training and testing
+        if self.test == True:
+            DISTANCE_FROM_ROAD = 5.0
+            DISTANCE_TO_FINISH = 2.0
+        else:
+            DISTANCE_FROM_ROAD = 2.0
+            DISTANCE_TO_FINISH = 1.0
+
+        # Finalizing the reward of the episode
+        if len(self.collision_hist) != 0 or distance_from_road >= DISTANCE_FROM_ROAD:
             done = True
-            reward = -3  # -2
+            reward = -4
         else:
             done = False
             reward = reward
@@ -384,115 +448,24 @@ class CarEnv:
         if self.episode_start + settings.SECONDS_PER_EPISODE < time.time():
             done = True
             reward = reward
-        # if l_.y <= -55:
-        if self.get_distance_to_finish() <= 2.0:    # 1
+
+        if self.get_distance_to_finish() <= DISTANCE_TO_FINISH:
             done = True
             is_finished = True
             reward = reward
         if abs(action[1]-last_action[1]) >= 0.3:    # 0.4 -> 0.3
             reward -= 0.5
 
+        # Return current state
         xx = int(self.distance_to_obstacle_f)
         yy = int(self.distance_to_obstacle_r)
         zz = int(self.distance_to_obstacle_l)
-        # if xx <= 3:
-        #     xx = 2
-        # elif xx <= 1:
-        #     xx = 1
-        # else:
-        #     xx = 0
-        # if yy <= 3:
-        #     yy = 2
-        # elif yy <= 1:
-        #     yy = 1
-        # else:
-        #     yy = 0
-        # if zz <= 3:
-        #     zz = 2
-        # elif zz <= 1:
-        #     zz = 1
-        # else:wwwww
-        #     zz = 0
+
+        img = np.random.rand(settings.IM_HEIGHT, settings.IM_WIDTH, 2)
+        img[:, :, 0:1] = self.segm_img
+        img[:, :, 1:2] = self.depth
 
         self.current_state = np.array(
-            [xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh])
+            [img, xx, yy, zz, diff_angle, distance_from_road, side, last_action[1], diff_v, v_kmh], dtype='object')
 
         return self.current_state, reward, done, is_finished, None
-
-    # def test_step(self, action, last_action):
-
-    #     finish = 0
-
-    #     strr = action
-
-    #     self.vehicle.apply_control(carla.VehicleControl(
-    #         throttle=0.3, brake=0, steer=strr))
-    #     time.sleep(0.5)
-
-    #     l_ = self.vehicle.get_location()
-    #     ref_map = self.get_distance()
-    #     alpha = self.get_tangent_angle_closest_point()
-    #     beta, vcar = self.get_velocity_data()
-    #     side = self.get_side()
-
-    #     if beta*alpha < 0:
-    #         if abs(beta)+abs(alpha) > math.pi:
-    #             reward = math.cos(2*math.pi-abs(beta)-abs(alpha))-0.1*ref_map
-    #             if beta > alpha:
-    #                 diff_angle = abs(beta)+abs(alpha)-2*math.pi
-    #             else:
-    #                 diff_angle = 2*math.pi-abs(beta)-abs(alpha)
-    #         elif abs(beta)+abs(alpha) < math.pi:
-    #             reward = math.cos(abs(beta)+abs(alpha))-0.1*ref_map
-    #             if beta > alpha:
-    #                 diff_angle = abs(beta)+abs(alpha)
-    #             else:
-    #                 diff_angle = -abs(beta)-abs(alpha)
-    #         else:
-    #             reward = -1-0.1*ref_map
-    #             diff_angle = math.pi
-    #     else:
-    #         reward = math.cos(abs(beta-alpha))-0.1*ref_map
-    #         diff_angle = beta-alpha
-
-    #     if len(self.collision_hist) != 0:
-    #         done = True
-    #         reward = -2
-    #     else:
-    #         done = False
-    #         reward = reward
-
-    #     if self.episode_start + settings.SECONDS_PER_EPISODE < time.time():
-    #         done = True
-    #         reward = reward
-    #     if l_.x <= 145:
-    #         done = True
-    #         finish = 1
-    #         reward = reward
-    #     if abs(action-last_action) >= 0.4:
-    #         reward -= 0.5
-
-    #     xx = self.distance_to_obstacle_f
-    #     yy = self.distance_to_obstacle_r
-    #     zz = self.distance_to_obstacle_l
-    #     if xx <= 3:
-    #         xx = 2
-    #     elif xx <= 1:
-    #         xx = 1
-    #     else:
-    #         xx = 0
-    #     if yy <= 3:
-    #         yy = 2
-    #     elif yy <= 1:
-    #         yy = 1
-    #     else:
-    #         yy = 0
-    #     if zz <= 3:
-    #         zz = 2
-    #     elif zz <= 1:
-    #         zz = 1
-    #     else:
-    #         zz = 0
-    #     state_ = np.array([xx, yy, zz, diff_angle, ref_map, side, last_action])
-
-    #     return state_, reward, done, finish, None

@@ -75,39 +75,52 @@ if __name__ == '__main__':
         v_kmh = [0]
         dist_ = []
 
-        # Reset environment and get initial state
-        current_state = Env.reset()
-        Agent.resetRandomProcess()
-
-        done = False
-
         while True:
 
-            # Predict an action based on current observation space
-            action = Agent.chooseAction(current_state)[0]
+            # Reset environment and get initial state
+            current_state = Env.reset()
+            Agent.resetRandomProcess()
 
-            # Step environment (additional flag informs environment to not break an episode by time limit)
-            new_state, reward, done, is_finished, _ = Env.step(
-                action, Action[-1], v_kmh[-1])
+            done = False
 
-            # Save testing data
-            Action.append(action)
-            dist_.append(Env.get_distance())
-            v_kmh.append(new_state[-1])
+            t1 = time.time()
 
-            # Set current step for next loop iteration
-            current_state = new_state
+            while True:
 
-            # map_.append(Env.get_location())
-            episode_reward += reward
-            step += 1
+                # Predict an action based on current observation space
+                action = Agent.chooseAction(current_state)[0]
 
-            # If done - agent crashed, break an episode
+                # Step environment (additional flag informs environment to not break an episode by time limit)
+                new_state, reward, done, is_finished, _ = Env.step(
+                    action, Action[-1], v_kmh[-1])
+
+                # Save testing data
+                Action.append(action)
+                dist_.append(Env.get_distance())
+                v_kmh.append(new_state[-1])
+
+                # Set current step for next loop iteration
+                current_state = new_state
+
+                # map_.append(Env.get_location())
+                episode_reward += reward
+                step += 1
+
+                t2 = time.time()
+
+                # If done - agent crashed, break an episode
+                if done:
+                    break
+
+                # In case if Carla is bug.
+                if t2-t1 >= 10.0 and all(e == 0 for e in v_kmh[-11:-1]):
+                    break
+
+            for actor in Env.actor_list:
+                actor.destroy()
+
             if done:
                 break
-
-        for actor in Env.actor_list:
-            actor.destroy()
 
         dist_average.append(np.array(dist_).mean())
         avg_v_kmh.append(np.array(v_kmh).mean())
@@ -120,7 +133,7 @@ if __name__ == '__main__':
         if is_finished == True:
             results.append('Success')
         else:
-            results.append('Failed')
+            results.append('Failure')
 
     df_test = pd.DataFrame({'Episode': [i for i in range(1, test_ep+1)],
                             'Step': test_step, 'Reward': test_reward,

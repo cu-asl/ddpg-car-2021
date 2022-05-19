@@ -20,39 +20,6 @@ from sources import agent
 from sources import carla
 
 
-def open_carla(require):
-    try:
-        if require == 'fast':
-            os.popen(
-                'D:\\Program\\CarlaSimulator_v0.9.12\\CarlaUE4.exe -benchmark  -fps=10 -quality-level=Low')
-        else:
-            os.popen('D:\\Program\\CarlaSimulator_v0.9.12\\CarlaUE4.exe')
-    except Exception as err:
-        print(err)
-    print('opening Carla')
-
-
-def close_carla():
-    try:
-        os.system('TASKKILL /F /IM CarlaUE4.exe')
-    except Exception as err:
-        print(err)
-    time.sleep(0.5)
-
-
-def carla_is_running():
-    import psutil
-    if "CarlaUE4.exe" in (p.name() for p in psutil.process_iter()):
-        return True
-
-
-def reset_world():
-    Env.world.wait_for_tick()
-    for x in list(Env.world.get_actors()):
-        if x.type_id == 'vehicle.tesla.model3' or x.type_id == 'sensor.lidar.ray_cast' or x.type_id == 'sensor.other.collision':
-            x.destroy()
-
-
 def save_model(name, n, df, agent):
     file_path = "DATA\\"
     df.to_csv(file_path+'{}_{}.csv'.format(name, n))
@@ -93,13 +60,6 @@ def load_model(actor_name, critic_name, model_name):
 
 if __name__ == '__main__':
 
-    if carla_is_running():
-        pass
-    else:
-        close_carla()
-        open_carla('fast')
-        time.sleep(17)
-
     FPS = 60
     ep_rewards = []
     ep = []
@@ -112,19 +72,16 @@ if __name__ == '__main__':
     Map = []
     avg_v_kmh = []
     max_v_kmh = []
+    results = []
 
     random.seed(1)
     np.random.seed(1)
-    # tf.random.set_seed(1)
 
     # Create models folder
     if not os.path.isdir('DATA'):
         os.makedirs('DATA')
 
-    # sleepy = 0.3
-
-    #pp = ProgressPlot(x_label="Episode",line_names=['Average_reward'])
-    #########
+    # MODEL LOADER - Skip this if you want to train a new model
     if settings.LOAD == True:
         # In case Train from loaded_model
         actor_name = settings.LOADED_ACTOR_NAME
@@ -147,25 +104,13 @@ if __name__ == '__main__':
         Agent = agent.DDPGAgent()
         load_episode = 0
     ###############
-    # Agent = agent.DDPGAgent()
-    # load_episode = 0
+
     # Iterate over episodes
     Env = carla.CarEnv()
     Env.test = False
 
-    # reset_world()
-
-    # Start training thread and wait for training to be initialized
-    # trainer_thread = Thread(target=Agent.train_in_loop, daemon=True)
-    # trainer_thread.start()
-
-    # while not Agent.training_initialized:
-    #     time.sleep(0.01)
-
     for episode in tqdm(range(1, settings.EPISODES - load_episode + 1), ascii=True, unit='episodes'):
 
-        # episode += 1
-        # Env.collision_hist = [] -> REDUNDANT???
         episode_reward = 0
         explore = 0
         step = 0
@@ -183,14 +128,12 @@ if __name__ == '__main__':
         # Play for given number of seconds only
         while True:
 
-            # action = []
-
             if np.random.random() > settings.epsilon:
                 action = Agent.chooseAction(current_state)[0]
             else:
                 action = Agent.randomAction()[0]
                 explore += 1
-            new_state, reward, done, _, _ = Env.step(
+            new_state, reward, done, is_finished, _ = Env.step(
                 action, Action[-1], v_kmh[-1])
             Action.append(action)
             v_kmh.append(new_state[-1])
@@ -213,8 +156,10 @@ if __name__ == '__main__':
         for actor in Env.actor_list:
             actor.destroy()
 
+        # Train model
         Agent.train()
 
+        # Exploration limit
         if settings.epsilon > settings.MIN_EPSILON:
             settings.epsilon *= settings.EPSILON_DECAY
             settings.epsilon = max(settings.MIN_EPSILON, settings.epsilon)
@@ -222,6 +167,7 @@ if __name__ == '__main__':
         print('Episode :{}, Step :{}, Epsilon :{}, Reward :{}, Explore_rate :{}, Avg_v_kmh :{}, Max_v_kmh :{}, Map :{}'
               .format(episode+load_episode, step, settings.epsilon, episode_reward, explore/step, np.array(v_kmh).mean(), np.array(v_kmh).max(), Env.map_name))
 
+        # Saving data
         ep_rewards.append(episode_reward)
         ep.append(episode+load_episode)
         Step.append(step)
@@ -234,16 +180,14 @@ if __name__ == '__main__':
         max_v_kmh.append(np.array(v_kmh).max())
         Map.append(Env.map_name)
 
+        if is_finished == True:
+            results.append('Success')
+        else:
+            results.append('Failure')
+
         if (episode+load_episode) % settings.SAVE_MODEL_EVERY == 0:
             df = pd.DataFrame({'Episode': ep, 'Reward': ep_rewards, 'avg_reward': avg_reward, 'Step': Step, 'Explore': Explore, 'PCT_Explore': np.array(
-                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map})
-            # if LOAD == True:
-            #     df = pd.concat([df_load, df], ignore_index=True)
-            save_model('FEB_7', episode+load_episode, df, Agent)
+                Explore)/np.array(Step)*100, 'Epsilon': Epsilon, 'Avg_velocity': avg_v_kmh, 'Max_velocity': max_v_kmh, 'Map': Map, 'Results': results})
+            save_model('APR_23', episode+load_episode, df, Agent)
 
-    # Agent.terminate = True
-    # trainer_thread.join()
-
-    # close_carla()
-
-    print('Train finished.')
+    print('Training finished.')
