@@ -17,12 +17,14 @@ Installed RAM: Should be at least 16.0 GB
 
 Installed GPU: Only NVIDIA supports CARLA so AMD is not allowed. Also, 8.0 GB-RAM GPU is recommended. (Even though, I used the 4.0 GB one but still works fine.)
 
-You also need the CARLA simulator v0.9.12 (I don't recommend using the versions below this because there are major changes in every version. Moreover, if you want to use a higher-version one, there are also risks that some further changes might affect the code.)
+
+**Installation**
+You need the CARLA simulator v0.9.12 (I don't recommend using the versions below this because there are major changes in every version. Moreover, if you want to use a higher-version one, there are also risks that some further changes might affect the code.)
 
 **CARLA (All versions)**: https://github.com/carla-simulator/carla/releases
 
 
-Then you need Python 3.7 (This project used Python 3.7.9, but 3.7.x also work fine.)
+You also need Python 3.7 for this project. (I used Python 3.7.9, but 3.7.x also work fine.)
 
 **Python 3.7.9**: https://www.python.org/downloads/release/python-379/
 
@@ -63,4 +65,4 @@ Furthermore, there is `replayBuffer.py` for `agent.py` but I don't recommend cha
 2. There is a [demo video](https://youtu.be/hJAFLDik3_c) here explained in Thai. 
 
 ## Hope you have fun with our project !!!
-Last updated: May 19th, 2022 18:52
+Last updated: May 19th, 2022 19:03
