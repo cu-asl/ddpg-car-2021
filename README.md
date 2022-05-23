@@ -41,6 +41,7 @@ Now, you are all set !!!
 ### Dataset
 We have 10 datasets of waypoints in town03 saved in `refmaps` folder. Also, we saved starting points of every refmap in `starting_points.csv`. You should not modify any of these.
 
+**Important: Before training or testing a model, please open the CARLA simulator first by clicking `CarlaUE4.exe` and wait until the world is loaded.**
 ### Training a model
 To train a model, you just simply run `train.py`. The hyperparameters can be changed in `settings.py`. 
 *Note that for 30,000 episodes, it takes about 9 days to finish.* So, make sure that your computer is ready.
