@@ -66,4 +66,3 @@ Furthermore, there is `replayBuffer.py` for `agent.py` but I don't recommend cha
 2. There is a [demo video](https://youtu.be/hJAFLDik3_c) here explained in Thai. 
 
 ## Hope you have fun with our project !!!
-Last updated: May 19th, 2022 19:03
